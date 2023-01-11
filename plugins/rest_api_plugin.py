@@ -1,6 +1,8 @@
 __author__ = 'lliu12, linhgao'
 __version__ = "1.0.0"
 
+import base64
+
 from airflow.models import DagBag, DagModel, DagRun, DAG
 from airflow.plugins_manager import AirflowPlugin
 from airflow import configuration
@@ -10,7 +12,7 @@ from airflow.utils.state import State
 from airflow.utils import timezone
 from airflow.exceptions import TaskNotFound
 
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, send_file
 from flask_admin import BaseView as AdminBaseview, expose as admin_expose
 from flask_login.utils import _get_user
 
@@ -87,6 +89,17 @@ apis_metadata = [
             {"name": "file", "description": "uploaded file", "form_input_type": "file", "required": True},
             {"name": "force", "description": "Whether to forcefully upload the file if the file already exists or not",
              "form_input_type": "checkbox", "required": False},
+            {"name": "path", "description": "the path of file", "form_input_type": "text", "required": False}
+        ]
+    },
+    {
+        "name": "download_file",
+        "description": "download a File from the specified folder",
+        "http_method": "POST",
+        "form_enctype": "multipart/form-data",
+        "arguments": [],
+        "post_arguments": [
+            {"name": "file", "description": "file name to download", "form_input_type": "text", "required": True},
             {"name": "path", "description": "the path of file", "form_input_type": "text", "required": False}
         ]
     },
@@ -372,6 +385,8 @@ class REST_API(get_baseview()):
             final_response = self.delete_dag()
         elif api == "upload_file":
             final_response = self.upload_file()
+        elif api == "download_file":
+            final_response = self.download_file()
         elif api == "dag_state":
             final_response = self.dag_state()
         elif api == "task_instance_detail":
@@ -553,6 +568,43 @@ class REST_API(get_baseview()):
         return ApiResponse.success({
             "message": "File [{}] has been uploaded".format(save_file_path)
         })
+
+
+    def download_file(self):
+        """Custom Function for the upload_file API.
+        Upload files to the specified path.
+        """
+        logging.info("Executing custom 'download_file' function")
+
+        # check if the post request has the file part
+        if 'file' not in request.files or request.files['file'] is None or request.files['file'].filename == '':
+            logging.warning("The file argument wasn't provided")
+            return ApiResponse.bad_request("file should be provided")
+        filename = request.get_argument(request, 'file')
+
+        path = self.get_argument(request, 'path')
+        if path is None:
+            path = airflow_dags_folder
+
+
+        # save file
+        file_path = os.path.join(path, filename)
+
+        # Check if the file already exists.
+        if not os.path.isfile(file_path):
+            logging.warning("File to download does not exist")
+            return ApiResponse.not_found("The file '" + file_path + "' does not exist on host '" + hostname)
+
+        return send_file(file_path,
+                         attachment_filename=filename)
+        """
+        with open()
+        file_content = base64.b64encode()
+        return ApiResponse.success({
+            "message": "File [{}] has been uploaded".format(save_file_path)
+        })
+        """
+
 
     def dag_state(self):
         """Get dag_run from session according to dag_id and run_id,

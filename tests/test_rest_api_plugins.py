@@ -235,6 +235,12 @@ task_test_1 = BashOperator(
                 force="true"
             )
             self.client.post(url, data=form_1, follow_redirects=True)
+            form_1 = dict(
+                api="download_file",
+                file='test.json'
+            )
+            r = self.client.post(url, data=form_1, follow_redirects=True)
+            print(r)
 
     def test_api_provided(self):
         url = '/admin/rest_api/api'
